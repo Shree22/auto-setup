@@ -1,0 +1,260 @@
+import type { SetupCatalog } from "./types";
+
+/**
+ * Static stand-in for the backend's setup catalog
+ * (future: GET /api/setup/catalog). Only lib/setup/mock-api.ts should
+ * import this file.
+ */
+export const mockCatalog: SetupCatalog = {
+  applicationTypes: [
+    { id: "web", name: "Web Application", description: "Browser-based apps and websites" },
+    { id: "mobile", name: "Mobile Application", description: "Native and hybrid Android / iOS apps" },
+    { id: "api", name: "API", description: "REST services and backend endpoints" },
+  ],
+
+  tools: [
+    {
+      id: "selenium",
+      name: "Selenium",
+      description: "The industry standard for web browser automation.",
+      applicationType: "web",
+      icon: "globe",
+      languageIds: ["python", "java"],
+      supportsBrowsers: true,
+      tag: "Most popular",
+    },
+    {
+      id: "playwright",
+      name: "Playwright",
+      description: "Modern, fast end-to-end testing with auto-waiting.",
+      applicationType: "web",
+      icon: "drama",
+      languageIds: ["typescript", "javascript", "python", "java"],
+      supportsBrowsers: true,
+      tag: "Modern",
+    },
+    {
+      id: "cypress",
+      name: "Cypress",
+      description: "Fast, developer-friendly testing that runs in the browser.",
+      applicationType: "web",
+      icon: "tree-pine",
+      languageIds: ["javascript", "typescript"],
+      supportsBrowsers: true,
+    },
+    {
+      id: "robot",
+      name: "Robot Framework",
+      description: "Keyword-driven tests written in plain, readable language.",
+      applicationType: "web",
+      icon: "bot",
+      languageIds: ["python"],
+      supportsBrowsers: true,
+      tag: "No-code friendly",
+    },
+    {
+      id: "appium",
+      name: "Appium",
+      description: "Automate native, hybrid and mobile web apps.",
+      applicationType: "mobile",
+      icon: "smartphone",
+      languageIds: ["java", "python"],
+      supportsBrowsers: false,
+    },
+    {
+      id: "rest-assured",
+      name: "REST Assured",
+      description: "Readable, fluent API testing for Java.",
+      applicationType: "api",
+      icon: "webhook",
+      languageIds: ["java"],
+      supportsBrowsers: false,
+    },
+  ],
+
+  languages: [
+    { id: "python", name: "Python", version: "3.10+" },
+    { id: "java", name: "Java", version: "17+" },
+    { id: "typescript", name: "TypeScript", version: "5.x" },
+    { id: "javascript", name: "JavaScript", version: "Node 20+" },
+  ],
+
+  frameworks: [
+    {
+      id: "pytest",
+      name: "Pytest",
+      description: "Simple, powerful and the most popular Python test runner.",
+      languageIds: ["python"],
+      toolIds: ["selenium", "playwright", "appium"],
+      recommended: true,
+    },
+    {
+      id: "unittest",
+      name: "unittest",
+      description: "Python's built-in test framework. No extra install.",
+      languageIds: ["python"],
+      toolIds: ["selenium"],
+    },
+    {
+      id: "behave",
+      name: "Behave (BDD)",
+      description: "Write scenarios in Gherkin: Given / When / Then.",
+      languageIds: ["python"],
+      toolIds: ["selenium"],
+    },
+    {
+      id: "testng",
+      name: "TestNG",
+      description: "Flexible Java framework with groups, priorities and parallel runs.",
+      languageIds: ["java"],
+      toolIds: ["selenium", "appium", "rest-assured", "playwright"],
+      recommended: true,
+    },
+    {
+      id: "junit5",
+      name: "JUnit 5",
+      description: "The standard modern test framework for Java.",
+      languageIds: ["java"],
+      toolIds: ["selenium", "appium", "rest-assured", "playwright"],
+    },
+    {
+      id: "cucumber",
+      name: "Cucumber (BDD)",
+      description: "Behaviour-driven tests in Gherkin, backed by Java steps.",
+      languageIds: ["java"],
+      toolIds: ["selenium"],
+    },
+    {
+      id: "playwright-test",
+      name: "Playwright Test",
+      description: "Playwright's own runner with fixtures, tracing and parallelism.",
+      languageIds: ["typescript", "javascript"],
+      toolIds: ["playwright"],
+      recommended: true,
+    },
+    {
+      id: "cypress-mocha",
+      name: "Cypress (Mocha)",
+      description: "Cypress's built-in runner using describe / it syntax.",
+      languageIds: ["javascript", "typescript"],
+      toolIds: ["cypress"],
+      recommended: true,
+    },
+    {
+      id: "robot-selenium",
+      name: "SeleniumLibrary",
+      description: "Robot Framework keywords powered by Selenium.",
+      languageIds: ["python"],
+      toolIds: ["robot"],
+      recommended: true,
+    },
+    {
+      id: "robot-browser",
+      name: "Browser Library",
+      description: "Robot Framework keywords powered by Playwright.",
+      languageIds: ["python"],
+      toolIds: ["robot"],
+    },
+  ],
+
+  browsers: [
+    { id: "chrome", name: "Chrome" },
+    { id: "firefox", name: "Firefox" },
+    { id: "edge", name: "Edge" },
+    { id: "safari", name: "Safari / WebKit" },
+  ],
+
+  structures: [
+    {
+      id: "basic",
+      name: "Basic",
+      description: "Tests and a config file. The quickest way to write your first test.",
+      level: "Beginner",
+      highlights: ["Tests folder", "Single config file", "One sample test"],
+    },
+    {
+      id: "pom",
+      name: "Page Object Model",
+      description: "Separates page locators and actions from test logic. The industry standard.",
+      level: "Intermediate",
+      highlights: ["Pages + tests separated", "Base page helpers", "Reusable utilities"],
+      recommended: true,
+    },
+    {
+      id: "advanced",
+      name: "Advanced",
+      description: "POM plus test data, environment configs and helpers for larger suites.",
+      level: "Advanced",
+      highlights: ["Everything in POM", "Data-driven tests", "Multi-environment config"],
+    },
+  ],
+
+  addons: [
+    {
+      id: "allure",
+      name: "Allure Report",
+      description: "Rich, interactive HTML test reports.",
+      category: "Reporting",
+      defaultSelected: true,
+    },
+    {
+      id: "html-report",
+      name: "HTML Report",
+      description: "A lightweight single-file HTML report.",
+      category: "Reporting",
+    },
+    {
+      id: "screenshots",
+      name: "Screenshot on Failure",
+      description: "Automatically capture the screen when a test fails.",
+      category: "Debugging",
+      toolIds: ["selenium", "playwright", "cypress", "robot", "appium"],
+      defaultSelected: true,
+    },
+    {
+      id: "video",
+      name: "Video Recording",
+      description: "Record test runs to replay failures.",
+      category: "Debugging",
+      toolIds: ["playwright", "cypress"],
+    },
+    {
+      id: "logging",
+      name: "Logging",
+      description: "Structured logs for every test step.",
+      category: "Utilities",
+      defaultSelected: true,
+    },
+    {
+      id: "webdriver-manager",
+      name: "WebDriver Manager",
+      description: "Downloads the right browser driver automatically.",
+      category: "Utilities",
+      toolIds: ["selenium"],
+    },
+    {
+      id: "env-config",
+      name: "Environment Config",
+      description: "Switch between dev, staging and prod with .env files.",
+      category: "Utilities",
+    },
+    {
+      id: "parallel",
+      name: "Parallel Execution",
+      description: "Run tests concurrently to finish faster.",
+      category: "Utilities",
+    },
+    {
+      id: "github-actions",
+      name: "GitHub Actions",
+      description: "A ready-to-use CI workflow that runs your tests.",
+      category: "CI/CD",
+    },
+    {
+      id: "docker",
+      name: "Docker",
+      description: "Run the suite in a container, same everywhere.",
+      category: "CI/CD",
+    },
+  ],
+};
