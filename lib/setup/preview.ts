@@ -1,45 +1,18 @@
 /**
- * Mock implementation of the AutoSetup backend.
+ * Builds the preview of a generated project: its file tree, dependencies,
+ * prerequisites and setup commands. Runs on the server, behind
+ * /api/setup/preview.
  *
- * Mirrors what the real service will do so the UI can be built and
- * exercised end to end. Everything here is throwaway: once the backend
- * exists, lib/setup/api.ts stops calling these functions.
+ * Note: this describes what WOULD be generated. Writing the real files is
+ * still to come.
  */
-import { mockCatalog } from "./mock-data";
 import type {
   FileNode,
-  GenerateProjectResult,
+  Prerequisite,
   ProjectPreview,
-  SetupCatalog,
   SetupSelection,
+  SetupStep,
 } from "./types";
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function mockGetCatalog(): Promise<SetupCatalog> {
-  await delay(250);
-  return structuredClone(mockCatalog);
-}
-
-export async function mockGetProjectPreview(
-  selection: SetupSelection
-): Promise<ProjectPreview> {
-  await delay(600);
-  return buildPreview(selection);
-}
-
-export async function mockGenerateProject(
-  selection: SetupSelection
-): Promise<GenerateProjectResult> {
-  await delay(1600);
-  const preview = buildPreview(selection);
-  return {
-    projectId: `mock-${Date.now().toString(36)}`,
-    projectName: preview.projectName,
-    fileCount: preview.fileCount,
-    downloadUrl: null,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Preview builder
@@ -57,12 +30,13 @@ type Ctx = {
   lang: string;
   framework: string;
   structure: string;
+  browsers: string[];
   has: (addonId: string) => boolean;
   pom: boolean;
   advanced: boolean;
 };
 
-function buildPreview(sel: SetupSelection): ProjectPreview {
+export function buildPreview(sel: SetupSelection): ProjectPreview {
   const addons = new Set(sel.addonIds);
   const structure = sel.structureId ?? "basic";
   const ctx: Ctx = {
@@ -70,6 +44,7 @@ function buildPreview(sel: SetupSelection): ProjectPreview {
     lang: sel.languageId ?? "python",
     framework: sel.frameworkId ?? "pytest",
     structure,
+    browsers: sel.browserIds,
     has: (id) => addons.has(id),
     pom: structure !== "basic",
     advanced: structure === "advanced",
@@ -103,6 +78,8 @@ function buildPreview(sel: SetupSelection): ProjectPreview {
     fileCount: countFiles(tree),
     tree: [folder(projectName, tree)],
     dependencies: dependenciesFor(ctx),
+    prerequisites: prerequisitesFor(ctx),
+    setupSteps: setupStepsFor(ctx),
     runCommand: runCommandFor(ctx),
   };
 }
@@ -286,7 +263,7 @@ function dependenciesFor(c: Ctx): string[] {
       robot: "robotframework",
     };
     deps.push(
-      toolPkg[c.tool],
+      toolPkg[c.tool] ?? false,
       c.framework === "pytest" && "pytest",
       c.framework === "behave" && "behave",
       c.framework === "robot-selenium" && "robotframework-seleniumlibrary",
@@ -307,7 +284,7 @@ function dependenciesFor(c: Ctx): string[] {
       "rest-assured": "rest-assured",
     };
     deps.push(
-      toolPkg[c.tool],
+      toolPkg[c.tool] ?? false,
       c.framework === "testng" && "testng",
       c.framework === "junit5" && "junit-jupiter",
       c.framework === "cucumber" && "cucumber-java",
@@ -331,6 +308,152 @@ function dependenciesFor(c: Ctx): string[] {
   }
 
   return deps.filter(Boolean) as string[];
+}
+
+const BROWSER_NAMES: Record<string, string> = {
+  chrome: "Google Chrome",
+  firefox: "Mozilla Firefox",
+  edge: "Microsoft Edge",
+  safari: "Safari",
+};
+
+function prerequisitesFor(c: Ctx): Prerequisite[] {
+  const list: Prerequisite[] = [];
+
+  if (c.lang === "python") {
+    list.push({
+      name: "Python",
+      version: "3.10+",
+      reason: "Runs your tests. Includes pip for installing packages.",
+      url: "https://www.python.org/downloads/",
+    });
+  }
+
+  if (c.lang === "java") {
+    list.push(
+      {
+        name: "Java JDK",
+        version: "17+",
+        reason: "Compiles and runs your tests.",
+        url: "https://adoptium.net/",
+      },
+      {
+        name: "Apache Maven",
+        version: "3.9+",
+        reason: "Installs dependencies and runs the suite.",
+        url: "https://maven.apache.org/download.cgi",
+      }
+    );
+  }
+
+  if (c.lang === "typescript" || c.lang === "javascript") {
+    list.push({
+      name: "Node.js",
+      version: "20 LTS+",
+      reason: "Runs your tests. Includes npm for installing packages.",
+      url: "https://nodejs.org/en/download",
+    });
+  }
+
+  if (c.tool === "appium") {
+    list.push(
+      {
+        name: "Node.js",
+        version: "20 LTS+",
+        reason: "Needed to install the Appium server.",
+        url: "https://nodejs.org/en/download",
+      },
+      {
+        name: "Android Studio or Xcode",
+        version: "latest",
+        reason: "Provides the emulator or simulator your tests drive.",
+      }
+    );
+  }
+
+  // Selenium drives browsers installed on your machine; Playwright and Cypress
+  // download their own.
+  if (c.tool === "selenium" || c.tool === "robot") {
+    for (const id of c.browsers) {
+      const name = BROWSER_NAMES[id];
+      if (name) list.push({ name, version: "latest", reason: "Your tests run in this browser." });
+    }
+  }
+
+  if (c.has("allure")) {
+    list.push({
+      name: "Allure CLI",
+      version: "2.x",
+      reason: "Turns test results into the Allure report.",
+      url: "https://allurereport.org/docs/install/",
+      optional: true,
+    });
+  }
+
+  if (c.has("docker")) {
+    list.push({
+      name: "Docker Desktop",
+      version: "latest",
+      reason: "Runs the suite inside a container.",
+      url: "https://www.docker.com/products/docker-desktop/",
+      optional: true,
+    });
+  }
+
+  return list;
+}
+
+function setupStepsFor(c: Ctx): SetupStep[] {
+  const steps: SetupStep[] = [];
+
+  if (c.lang === "python") {
+    steps.push(
+      { label: "Create a virtual environment", command: "python -m venv .venv" },
+      {
+        label: "Activate it",
+        command: ".venv\\Scripts\\activate",
+        note: "On macOS or Linux: source .venv/bin/activate",
+      },
+      { label: "Install dependencies", command: "pip install -r requirements.txt" }
+    );
+    if (c.tool === "playwright") {
+      steps.push({ label: "Download the browsers", command: "playwright install" });
+    }
+    if (c.framework === "robot-browser") {
+      steps.push({ label: "Initialise Browser Library", command: "rfbrowser init" });
+    }
+  } else if (c.lang === "java") {
+    steps.push({
+      label: "Download dependencies",
+      command: "mvn clean install -DskipTests",
+      note: "Maven caches them, so this is slow only the first time.",
+    });
+    if (c.tool === "playwright") {
+      steps.push({
+        label: "Download the browsers",
+        command: 'mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install"',
+      });
+    }
+  } else {
+    steps.push({ label: "Install dependencies", command: "npm install" });
+    if (c.tool === "playwright") {
+      steps.push({ label: "Download the browsers", command: "npx playwright install" });
+    }
+  }
+
+  if (c.tool === "appium") {
+    steps.push(
+      { label: "Install the Appium server", command: "npm install -g appium" },
+      {
+        label: "Add the driver for your platform",
+        command: "appium driver install uiautomator2",
+        note: "For iOS use: appium driver install xcuitest",
+      },
+      { label: "Start the server, then run your tests", command: "appium" }
+    );
+  }
+
+  return steps;
 }
 
 function runCommandFor(c: Ctx): string {

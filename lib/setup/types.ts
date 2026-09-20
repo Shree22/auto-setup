@@ -100,11 +100,36 @@ export type FileNode = {
   children?: FileNode[];
 };
 
+/** Software the user must install on their machine before running the project. */
+export type Prerequisite = {
+  name: string;
+  /** Minimum version, e.g. "3.10+". */
+  version: string;
+  /** Why it's needed, shown under the name. */
+  reason?: string;
+  /** Official download page. */
+  url?: string;
+  /** Only needed for an add-on the user picked. */
+  optional?: boolean;
+};
+
+/** One command in the "get running" sequence, in order. */
+export type SetupStep = {
+  label: string;
+  command: string;
+  /** Platform caveat or extra hint. */
+  note?: string;
+};
+
 export type ProjectPreview = {
   projectName: string;
   fileCount: number;
   tree: FileNode[];
   dependencies: string[];
+  /** Software to install before the commands below will work. */
+  prerequisites: Prerequisite[];
+  /** Commands to run once, in order, to set the project up. */
+  setupSteps: SetupStep[];
   /** Command to run tests once the project is set up. */
   runCommand: string;
 };

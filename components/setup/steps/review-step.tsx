@@ -1,7 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Loader2, Package, Pencil, RotateCw, Terminal, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  ListOrdered,
+  Loader2,
+  MonitorDown,
+  Package,
+  Pencil,
+  RotateCw,
+  Terminal,
+  TriangleAlert,
+} from "lucide-react";
 import { FileTree } from "@/components/setup/file-tree";
 import { StepHeader } from "@/components/setup/step-section";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { projectNameError, type SelectionAction, type StepId } from "@/lib/setup/selection";
 import { getSelectedAddonNames, getSummaryItems } from "@/lib/setup/summary";
-import type { SetupCatalog, SetupSelection } from "@/lib/setup/types";
+import type { Prerequisite, SetupCatalog, SetupSelection, SetupStep } from "@/lib/setup/types";
 import { useProjectPreview } from "@/lib/setup/use-project-preview";
 
 type Props = {
@@ -167,10 +179,95 @@ function PreviewCard({ selection }: { selection: SetupSelection }) {
               </p>
               <CommandBlock command={state.data.runCommand} />
             </div>
+            <Separator />
+            <RequiredSoftware prerequisites={state.data.prerequisites} />
+            <Separator />
+            <SetupSteps steps={state.data.setupSteps} />
           </div>
         </div>
       )}
     </Card>
+  );
+}
+
+function RequiredSoftware({ prerequisites }: { prerequisites: Prerequisite[] }) {
+  if (!prerequisites.length) return null;
+
+  return (
+    <div>
+      <p className="mb-1 flex items-center gap-2 text-sm font-medium">
+        <MonitorDown className="size-4 text-primary" /> Required software
+      </p>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Install these on your machine first.
+      </p>
+      <ul className="space-y-2.5">
+        {prerequisites.map((item) => (
+          <li key={item.name} className="flex items-start gap-2.5">
+            <Check className="mt-1 size-3.5 shrink-0 text-primary" strokeWidth={3} />
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                {item.url ? (
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 underline-offset-4 hover:text-primary hover:underline"
+                  >
+                    {item.name}
+                    <ExternalLink className="size-3 opacity-60" />
+                  </a>
+                ) : (
+                  item.name
+                )}
+                <span className="font-mono text-xs font-normal text-muted-foreground">
+                  {item.version}
+                </span>
+                {item.optional && (
+                  <Badge variant="secondary" className="rounded-full font-normal">
+                    Optional
+                  </Badge>
+                )}
+              </p>
+              {item.reason && (
+                <p className="text-sm text-muted-foreground">{item.reason}</p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SetupSteps({ steps }: { steps: SetupStep[] }) {
+  if (!steps.length) return null;
+
+  return (
+    <div>
+      <p className="mb-1 flex items-center gap-2 text-sm font-medium">
+        <ListOrdered className="size-4 text-primary" /> Set up the project
+      </p>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Run these once, in order, inside the project folder.
+      </p>
+      <ol className="space-y-3">
+        {steps.map((step, i) => (
+          <li key={step.command} className="flex gap-3">
+            <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-[11px] font-semibold text-primary">
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="mb-1.5 text-sm">{step.label}</p>
+              <CommandBlock command={step.command} />
+              {step.note && (
+                <p className="mt-1.5 text-xs text-muted-foreground">{step.note}</p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

@@ -1,65 +1,47 @@
 /**
- * Setup API client — the single entry point the UI uses for setup data.
+ * Browser-side client for the setup API (app/api/…).
  *
- * Today every call is served by the mock layer. When the backend is ready,
- * set NEXT_PUBLIC_API_URL and the same functions call the real endpoints:
- *
- *   GET  {API_URL}/setup/catalog   -> SetupCatalog
- *   POST {API_URL}/setup/preview   -> ProjectPreview        (body: SetupSelection)
- *   POST {API_URL}/projects        -> GenerateProjectResult (body: SetupSelection)
+ * Server components read the catalog directly from lib/setup/catalog.ts —
+ * no HTTP hop needed.
  */
-import {
-  mockGenerateProject,
-  mockGetCatalog,
-  mockGetProjectPreview,
-} from "./mock-api";
-import type {
-  GenerateProjectResult,
-  ProjectPreview,
-  SetupCatalog,
-  SetupSelection,
-} from "./types";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import type { GenerateProjectResult, ProjectPreview, SetupSelection } from "./types";
 
 export class ApiError extends Error {
   constructor(
     message: string,
-    public status?: number
+    public status: number,
+    public details?: string[]
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+async function post<T>(path: string, body: SetupSelection): Promise<T> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
+
   if (!res.ok) {
-    throw new ApiError(`Request to ${path} failed`, res.status);
+    const payload = await res.json().catch(() => null);
+    throw new ApiError(
+      payload?.error ?? `Request to ${path} failed`,
+      res.status,
+      payload?.details?.map((d: { message?: string } | string) =>
+        typeof d === "string" ? d : (d.message ?? "")
+      )
+    );
   }
+
   return res.json() as Promise<T>;
 }
 
-export function getSetupCatalog(): Promise<SetupCatalog> {
-  if (!API_URL) return mockGetCatalog();
-  return request<SetupCatalog>("/setup/catalog");
-}
-
 export function getProjectPreview(selection: SetupSelection): Promise<ProjectPreview> {
-  if (!API_URL) return mockGetProjectPreview(selection);
-  return request<ProjectPreview>("/setup/preview", {
-    method: "POST",
-    body: JSON.stringify(selection),
-  });
+  return post<ProjectPreview>("/api/setup/preview", selection);
 }
 
 export function generateProject(selection: SetupSelection): Promise<GenerateProjectResult> {
-  if (!API_URL) return mockGenerateProject(selection);
-  return request<GenerateProjectResult>("/projects", {
-    method: "POST",
-    body: JSON.stringify(selection),
-  });
+  return post<GenerateProjectResult>("/api/projects", selection);
 }

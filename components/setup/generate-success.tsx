@@ -41,7 +41,7 @@ export function GenerateSuccess({ result, summary, onStartOver }: Props) {
       <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
         {canDownload ? (
           <Button asChild size="lg" className="h-11 px-6">
-            <a href={result.downloadUrl!}>
+            <a href={result.downloadUrl!} download={`${result.projectName}.zip`}>
               <Download data-icon="inline-start" /> Download ZIP
             </a>
           </Button>
@@ -63,11 +63,11 @@ export function GenerateSuccess({ result, summary, onStartOver }: Props) {
         </Button>
       </div>
 
-      {!canDownload && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          ZIP downloads are coming soon. Your selections are saved in this summary.
-        </p>
-      )}
+      <p className="mt-4 text-sm text-muted-foreground">
+        {canDownload
+          ? "Unzip it, follow the setup steps in the README, and run your first test."
+          : "ZIP downloads are coming soon. Your selections are saved in this summary."}
+      </p>
 
       <Button asChild variant="link" className="mt-4">
         <Link href="/">Back to home</Link>

@@ -1,5 +1,5 @@
 import { SetupWizard } from "@/components/setup/setup-wizard";
-import { getSetupCatalog } from "@/lib/setup/api";
+import { catalog } from "@/lib/setup/catalog";
 import { resolveInitialState } from "@/lib/setup/selection";
 
 /**
@@ -7,7 +7,7 @@ import { resolveInitialState } from "@/lib/setup/selection";
  * /setup?tool=selenium&language=python&framework=pytest&structure=pom
  */
 export default async function SetupPage({ searchParams }: PageProps<"/setup">) {
-  const [catalog, params] = await Promise.all([getSetupCatalog(), searchParams]);
+  const params = await searchParams;
   const { selection, step } = resolveInitialState(catalog, params);
 
   return (

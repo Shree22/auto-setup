@@ -1,11 +1,12 @@
 import type { SetupCatalog } from "./types";
 
 /**
- * Static stand-in for the backend's setup catalog
- * (future: GET /api/setup/catalog). Only lib/setup/mock-api.ts should
- * import this file.
+ * The options the wizard offers, served by GET /api/setup/catalog.
+ *
+ * Static for now. Moving this into Postgres (via Drizzle) is what would let
+ * tools and frameworks be added without a deploy.
  */
-export const mockCatalog: SetupCatalog = {
+export const catalog: SetupCatalog = {
   applicationTypes: [
     { id: "web", name: "Web Application", description: "Browser-based apps and websites" },
     { id: "mobile", name: "Mobile Application", description: "Native and hybrid Android / iOS apps" },

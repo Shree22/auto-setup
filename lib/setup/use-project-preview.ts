@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getProjectPreview } from "./api";
+import { ApiError, getProjectPreview } from "./api";
 import type { ProjectPreview, SetupSelection } from "./types";
 
 type PreviewState =
@@ -28,9 +28,13 @@ export function useProjectPreview(selection: SetupSelection, debounceMs = 350) {
         .then((data) => {
           if (!cancelled) setState({ status: "success", data, refreshing: false });
         })
-        .catch(() => {
-          if (!cancelled)
-            setState({ status: "error", message: "We couldn't load the project preview." });
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          const detail = error instanceof ApiError ? error.details?.[0] : undefined;
+          setState({
+            status: "error",
+            message: detail ?? "We couldn't load the project preview.",
+          });
         });
     }, debounceMs);
 
