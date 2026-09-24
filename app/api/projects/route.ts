@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     projectId: `tmp-${Date.now().toString(36)}`,
     projectName: preview.projectName,
     fileCount: preview.fileCount,
-    downloadUrl: `/api/projects/download?token=${encodeSelection(parsed.data)}`,
+    downloadUrl: `/api/projects/download?token=${encodeSelection(parsed.data)}&from=wizard`,
   };
 
   return Response.json(result, { status: 201 });

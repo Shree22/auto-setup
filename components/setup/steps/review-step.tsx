@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  ChartColumn,
   Check,
   Copy,
   ExternalLink,
@@ -178,6 +179,14 @@ function PreviewCard({ selection }: { selection: SetupSelection }) {
                 <Terminal className="size-4 text-primary" /> Run your tests
               </p>
               <CommandBlock command={state.data.runCommand} />
+              {state.data.reportCommand && (
+                <>
+                  <p className="mt-4 mb-2.5 flex items-center gap-2 text-sm font-medium">
+                    <ChartColumn className="size-4 text-primary" /> Open the report
+                  </p>
+                  <CommandBlock command={state.data.reportCommand} />
+                </>
+              )}
             </div>
             <Separator />
             <RequiredSoftware prerequisites={state.data.prerequisites} />

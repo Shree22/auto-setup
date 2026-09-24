@@ -132,6 +132,8 @@ export type ProjectPreview = {
   setupSteps: SetupStep[];
   /** Command to run tests once the project is set up. */
   runCommand: string;
+  /** Command to open the test report, when a reporting add-on is selected. */
+  reportCommand?: string;
 };
 
 export type GenerateProjectResult = {

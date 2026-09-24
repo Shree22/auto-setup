@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useReducer, useState } from "react";
+import { track } from "@vercel/analytics";
 import { ArrowLeft, ArrowRight, ClipboardList, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { GenerateSuccess } from "@/components/setup/generate-success";
 import { Stepper } from "@/components/setup/stepper";
@@ -71,6 +72,13 @@ export function SetupWizard({ catalog, initialSelection, initialStep }: Props) {
     setGeneration({ status: "generating" });
     try {
       const result = await generateProject(selection);
+      track("project_generated", {
+        tool: selection.toolId ?? "unknown",
+        language: selection.languageId ?? "unknown",
+        framework: selection.frameworkId ?? "unknown",
+        structure: selection.structureId ?? "unknown",
+        addons: selection.addonIds.length,
+      });
       setGeneration({ status: "success", result });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {

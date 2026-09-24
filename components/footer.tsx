@@ -1,41 +1,47 @@
-import { Heart } from "lucide-react";
+import { Heart, Mail } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 const columns = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "#features" },
-      { label: "Supported Tools", href: "#tools" },
-      { label: "How It Works", href: "#how-it-works" },
+      { label: "Features", href: "/#features" },
+      { label: "Supported Tools", href: "/#tools" },
+      { label: "How It Works", href: "/#how-it-works" },
       { label: "Get Started", href: "/setup" },
     ],
   },
   {
     title: "Resources",
     links: [
-      { label: "Documentation", href: "#" },
-      { label: "Automation Guides", href: "#" },
-      { label: "Examples", href: "#" },
-      { label: "FAQ", href: "#faq" },
-    ],
-  },
-  {
-    title: "Community",
-    links: [
-      { label: "GitHub", href: "#" },
-      { label: "LinkedIn", href: "#" },
-      { label: "YouTube", href: "#" },
+      { label: "Documentation", href: "/docs" },
+      { label: "Automation Guides", href: "/guides" },
+      { label: "Examples", href: "/examples" },
+      { label: "FAQ", href: "/faq" },
     ],
   },
 ];
+
+/** Placeholder until a real domain and mailbox exist. */
+const contactEmail = "hello@autosetup.dev";
+
+/** Hidden until there is a real mailbox to receive the email. */
+const showContact = false;
 
 export function Footer() {
   return (
     <footer className="border-t bg-muted/40">
       <div className="mx-auto max-w-7xl px-4 pt-14 pb-8 sm:px-6 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div
+          className={cn(
+            "grid gap-10",
+            showContact
+              ? "lg:grid-cols-[1.5fr_1fr_1fr_1fr]"
+              : "lg:grid-cols-[1.5fr_1fr_1fr]"
+          )}
+        >
           <div className="max-w-xs">
             <Logo />
             <p className="mt-4 text-sm text-muted-foreground">
@@ -61,6 +67,22 @@ export function Footer() {
                 </ul>
               </div>
             ))}
+
+            {showContact && (
+              <div>
+                <p className="text-sm font-semibold">Contact</p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Questions or feedback? Get in touch.
+                </p>
+                <a
+                  href={`mailto:${contactEmail}`}
+                  className="mt-2.5 flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-foreground"
+                >
+                  <Mail className="size-4 shrink-0" aria-hidden />
+                  <span className="truncate">{contactEmail}</span>
+                </a>
+              </div>
+            )}
           </div>
         </div>
 

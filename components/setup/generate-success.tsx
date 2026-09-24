@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { track } from "@vercel/analytics";
 import { Check, Download, FolderCode, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +42,11 @@ export function GenerateSuccess({ result, summary, onStartOver }: Props) {
       <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
         {canDownload ? (
           <Button asChild size="lg" className="h-11 px-6">
-            <a href={result.downloadUrl!} download={`${result.projectName}.zip`}>
+            <a
+              href={result.downloadUrl!}
+              download={`${result.projectName}.zip`}
+              onClick={() => track("project_downloaded", { project: result.projectName })}
+            >
               <Download data-icon="inline-start" /> Download ZIP
             </a>
           </Button>

@@ -150,6 +150,16 @@ ${steps}
 ${c.preview.runCommand}
 \`\`\`
 
+## Sample tests
+
+| Test | What it shows |
+|---|---|
+| Login | Typing into fields, clicking, asserting the result |
+| Sorting | Choosing an option from a \`<select>\` dropdown${
+    c.pom ? "\n| Page objects | Locators kept out of the test files |" : ""
+  }
+${c.advanced ? "| Data-driven | One test, many sets of input |\n" : ""}
+${reportsSection(c)}
 ## Project structure
 
 \`\`\`
@@ -160,6 +170,27 @@ ${treeText(c.preview.tree)}\`\`\`
 The sample tests point at a demo site. Replace the URL and locators with your
 own application, then add tests beside the samples.
 `;
+}
+
+function reportsSection(c: Ctx): string {
+  if (!c.preview.reportCommand) return "";
+
+  const where = c.has("allure")
+    ? "Results are written to `reports/allure-results`."
+    : "The report is written into `reports/`.";
+
+  return `## Reports
+
+${where} After a run, open it with:
+
+\`\`\`bash
+${c.preview.reportCommand}
+\`\`\`
+${
+  c.has("allure")
+    ? "\n> `allure serve` needs the Allure CLI (see Required software above).\n"
+    : ""
+}`;
 }
 
 function treeText(nodes: FileNode[], indent = ""): string {
@@ -309,12 +340,26 @@ function testData(): string {
 }
 
 function featureFile(): string {
-  return `Feature: Login
+  return `Feature: Login and sorting
+
+  Background:
+    Given I am on the login page
 
   Scenario: A valid user can log in
-    Given I am on the login page
     When I log in as "standard_user"
     Then I should see the products page
+
+  Scenario Outline: Products can be sorted
+    When I log in as "standard_user"
+    And I sort the products by "<option>"
+    Then I should see the products page
+
+    Examples:
+      | option |
+      | az     |
+      | za     |
+      | lohi   |
+      | hilo   |
 `;
 }
 
@@ -355,6 +400,21 @@ def page(page, base_url):
     """pytest-playwright provides \`page\`; we just navigate first."""
     page.goto(base_url)
     yield page
+`;
+  }
+
+  if (c.tool === "appium") {
+    return `"""Shared pytest fixtures. The Appium server must already be running."""
+import pytest
+
+from utils.driver_factory import create_driver
+
+
+@pytest.fixture
+def driver():
+    driver = create_driver()
+    yield driver
+    driver.quit()
 `;
   }
 
@@ -412,6 +472,23 @@ def after_scenario(context, scenario):
 
 function pythonFile(path: string, base: string, c: Ctx): string {
   const playwright = c.tool === "playwright";
+
+  if (base === "driver_factory.py" && c.tool === "appium") {
+    return `"""Creates the Appium driver the tests run against."""
+import yaml
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
+
+
+def create_driver(config_path: str = "config/capabilities.yaml"):
+    """Connect to a running Appium server using the saved capabilities."""
+    with open(config_path, encoding="utf-8") as handle:
+        capabilities = yaml.safe_load(handle)
+
+    options = UiAutomator2Options().load_capabilities(capabilities)
+    return webdriver.Remote("http://127.0.0.1:4723", options=options)
+`;
+  }
 
   if (base === "driver_factory.py") {
     return `"""Creates the WebDriver instance the tests run against."""
@@ -489,6 +566,49 @@ def load_test_data(name: str = "users.json") -> dict:
 `;
   }
 
+  if (base === "base_screen.py") {
+    return `"""Base class for all screen objects."""
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+class BaseScreen:
+    def __init__(self, driver, timeout: int = 15):
+        self.driver = driver
+        self.wait = WebDriverWait(driver, timeout)
+
+    def find(self, locator):
+        return self.wait.until(EC.presence_of_element_located(locator))
+
+    def tap(self, locator):
+        self.wait.until(EC.element_to_be_clickable(locator)).click()
+
+    def type(self, locator, text: str):
+        element = self.find(locator)
+        element.clear()
+        element.send_keys(text)
+`;
+  }
+
+  if (base === "login_screen.py") {
+    return `"""Login screen object."""
+from appium.webdriver.common.appiumby import AppiumBy
+
+from screens.base_screen import BaseScreen
+
+
+class LoginScreen(BaseScreen):
+    USERNAME = (AppiumBy.ACCESSIBILITY_ID, "test-Username")
+    PASSWORD = (AppiumBy.ACCESSIBILITY_ID, "test-Password")
+    SUBMIT = (AppiumBy.ACCESSIBILITY_ID, "test-LOGIN")
+
+    def login(self, username: str, password: str):
+        self.type(self.USERNAME, username)
+        self.type(self.PASSWORD, password)
+        self.tap(self.SUBMIT)
+`;
+  }
+
   if (base === "base_page.py" || base === "base_screen.py") {
     return playwright
       ? `"""Base class for all page objects."""
@@ -509,10 +629,14 @@ class BasePage:
 
     def text_of(self, selector: str) -> str:
         return self.page.inner_text(selector)
+
+    def select_option(self, selector: str, value: str):
+        """Choose an option from a <select> dropdown by its value."""
+        self.page.select_option(selector, value)
 `
       : `"""Base class for all page objects."""
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import Select, WebDriverWait
 
 
 class BasePage:
@@ -522,6 +646,10 @@ class BasePage:
 
     def find(self, locator):
         return self.wait.until(EC.presence_of_element_located(locator))
+
+    def find_all(self, locator):
+        self.find(locator)
+        return self.driver.find_elements(*locator)
 
     def click(self, locator):
         self.wait.until(EC.element_to_be_clickable(locator)).click()
@@ -533,6 +661,13 @@ class BasePage:
 
     def text_of(self, locator) -> str:
         return self.find(locator).text
+
+    def select_option(self, locator, value: str):
+        """Choose an option from a <select> dropdown by its value."""
+        Select(self.find(locator)).select_by_value(value)
+
+    def selected_option(self, locator) -> str:
+        return Select(self.find(locator)).first_selected_option.text
 `;
   }
 
@@ -578,13 +713,217 @@ class LoginPage(BasePage):
 `;
   }
 
-  if (base === "home_page.py" || base === "home_screen.py") {
-    return `"""Products page object. TODO: add the elements your tests need."""
+  if (base === "products_page.py" || base === "home_page.py") {
+    return playwright
+      ? `"""Products page object: the sort dropdown lives here."""
 from pages.base_page import BasePage
 
 
-class HomePage(BasePage):
-    pass
+class ProductsPage(BasePage):
+    SORT_DROPDOWN = ".product_sort_container"
+    PRICES = ".inventory_item_price"
+    TITLE = ".title"
+
+    def sort_by(self, value: str):
+        """value: az, za, lohi or hilo."""
+        self.select_option(self.SORT_DROPDOWN, value)
+
+    def prices(self) -> list[float]:
+        return [
+            float(text.replace("$", ""))
+            for text in self.page.locator(self.PRICES).all_inner_texts()
+        ]
+`
+      : `"""Products page object: the sort dropdown lives here."""
+from selenium.webdriver.common.by import By
+
+from pages.base_page import BasePage
+
+
+class ProductsPage(BasePage):
+    SORT_DROPDOWN = (By.CLASS_NAME, "product_sort_container")
+    PRICES = (By.CLASS_NAME, "inventory_item_price")
+    TITLE = (By.CLASS_NAME, "title")
+
+    def sort_by(self, value: str):
+        """value: az, za, lohi or hilo."""
+        self.select_option(self.SORT_DROPDOWN, value)
+
+    def prices(self) -> list[float]:
+        return [float(item.text.replace("$", "")) for item in self.find_all(self.PRICES)]
+`;
+  }
+
+  if (base === "products_screen.py") {
+    return `"""Screen object for the product list."""
+from appium.webdriver.common.appiumby import AppiumBy
+
+from screens.base_screen import BaseScreen
+
+
+class ProductsScreen(BaseScreen):
+    TITLE = (AppiumBy.ACCESSIBILITY_ID, "test-PRODUCTS")
+
+    def is_loaded(self) -> bool:
+        return self.find(self.TITLE).is_displayed()
+`;
+  }
+
+  if (base === "test_sorting.py") {
+    const fixture = playwright ? "page" : "driver";
+    if (!c.pom) {
+      return playwright
+        ? `"""Dropdown sample: sorting the products list."""
+
+
+def test_sort_by_price_low_to_high(page):
+    page.fill("#user-name", "standard_user")
+    page.fill("#password", "secret_sauce")
+    page.click("#login-button")
+
+    # Selecting an option from a <select> dropdown:
+    page.select_option(".product_sort_container", "lohi")
+
+    prices = [
+        float(text.replace("$", ""))
+        for text in page.locator(".inventory_item_price").all_inner_texts()
+    ]
+    assert prices == sorted(prices)
+`
+        : `"""Dropdown sample: sorting the products list."""
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+
+
+def test_sort_by_price_low_to_high(driver):
+    driver.find_element(By.ID, "user-name").send_keys("standard_user")
+    driver.find_element(By.ID, "password").send_keys("secret_sauce")
+    driver.find_element(By.ID, "login-button").click()
+
+    # Selecting an option from a <select> dropdown:
+    Select(driver.find_element(By.CLASS_NAME, "product_sort_container")).select_by_value("lohi")
+
+    prices = [
+        float(item.text.replace("$", ""))
+        for item in driver.find_elements(By.CLASS_NAME, "inventory_item_price")
+    ]
+    assert prices == sorted(prices)
+`;
+    }
+
+    return `"""Dropdown sample: sorting the products list."""
+import pytest
+
+from pages.login_page import LoginPage
+from pages.products_page import ProductsPage
+
+
+@pytest.fixture
+def products_page(${fixture}):
+    LoginPage(${fixture}).login("standard_user", "secret_sauce")
+    return ProductsPage(${fixture})
+
+
+def test_sort_by_price_low_to_high(products_page):
+    products_page.sort_by("lohi")
+    prices = products_page.prices()
+    assert prices == sorted(prices)
+
+
+def test_sort_by_price_high_to_low(products_page):
+    products_page.sort_by("hilo")
+    prices = products_page.prices()
+    assert prices == sorted(prices, reverse=True)
+
+
+@pytest.mark.parametrize("option", ["az", "za", "lohi", "hilo"])
+def test_every_sort_option_is_selectable(products_page, option):
+    products_page.sort_by(option)
+`;
+  }
+
+  if (base === "test_login.py" && c.framework === "unittest") {
+    return `"""Sample login tests using Python's built-in unittest."""
+import unittest
+
+${c.pom ? "from pages.login_page import LoginPage\n" : ""}from utils.driver_factory import create_driver
+
+BASE_URL = "https://www.saucedemo.com"
+
+
+class LoginTest(unittest.TestCase):
+    def setUp(self):
+        self.driver = create_driver("${c.browsers[0] ?? "chrome"}")
+        self.driver.get(BASE_URL)
+
+    def tearDown(self):
+        self.driver.quit()
+
+    def test_valid_login_shows_products(self):
+${
+      c.pom
+        ? `        LoginPage(self.driver).login("standard_user", "secret_sauce")`
+        : `        # TODO: log in using self.driver`
+    }
+        self.assertIn("inventory", self.driver.current_url)
+
+    def test_invalid_login_shows_error(self):
+${
+      c.pom
+        ? `        page = LoginPage(self.driver)
+        page.login("wrong_user", "wrong_password")
+        self.assertIn("do not match", page.error_message())`
+        : `        self.assertIsNotNone(self.driver)  # TODO: assert the error message`
+    }
+
+
+if __name__ == "__main__":
+    unittest.main()
+`;
+  }
+
+  if (base === "test_sorting.py" && c.framework === "unittest") {
+    return `"""Dropdown sample using unittest: sorting the products list."""
+import unittest
+
+from pages.login_page import LoginPage
+from pages.products_page import ProductsPage
+from utils.driver_factory import create_driver
+
+
+class SortingTest(unittest.TestCase):
+    def setUp(self):
+        self.driver = create_driver("${c.browsers[0] ?? "chrome"}")
+        self.driver.get("https://www.saucedemo.com")
+        LoginPage(self.driver).login("standard_user", "secret_sauce")
+        self.products = ProductsPage(self.driver)
+
+    def tearDown(self):
+        self.driver.quit()
+
+    def test_sort_by_price_low_to_high(self):
+        self.products.sort_by("lohi")
+        prices = self.products.prices()
+        self.assertEqual(prices, sorted(prices))
+
+
+if __name__ == "__main__":
+    unittest.main()
+`;
+  }
+
+  if (base === "test_login.py" && c.tool === "appium") {
+    return `"""Sample mobile test. Start the Appium server before running."""
+${c.pom ? "from screens.login_screen import LoginScreen\nfrom screens.products_screen import ProductsScreen\n" : ""}
+
+def test_valid_login_opens_products(driver):
+${
+      c.pom
+        ? `    LoginScreen(driver).login("standard_user", "secret_sauce")
+    assert ProductsScreen(driver).is_loaded()`
+        : `    # TODO: drive the app through the driver fixture.
+    assert driver is not None`
+    }
 `;
   }
 
@@ -628,11 +967,44 @@ def test_login_combinations(${c.tool === "playwright" ? "page" : "driver"}, user
 `;
   }
 
+  if (path.includes("steps/") && !c.pom) {
+    return `"""Behave step definitions."""
+from behave import given, then, when
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+
+
+@given("I am on the login page")
+def step_open_login(context):
+    context.driver.get("https://www.saucedemo.com")
+
+
+@when('I log in as "{username}"')
+def step_login(context, username):
+    context.driver.find_element(By.ID, "user-name").send_keys(username)
+    context.driver.find_element(By.ID, "password").send_keys("secret_sauce")
+    context.driver.find_element(By.ID, "login-button").click()
+
+
+@when('I sort the products by "{option}"')
+def step_sort(context, option):
+    # Choosing an option from a <select> dropdown:
+    dropdown = context.driver.find_element(By.CLASS_NAME, "product_sort_container")
+    Select(dropdown).select_by_value(option)
+
+
+@then("I should see the products page")
+def step_check_products(context):
+    assert "inventory" in context.driver.current_url
+`;
+  }
+
   if (path.includes("steps/")) {
     return `"""Behave step definitions."""
 from behave import given, then, when
 
 from pages.login_page import LoginPage
+from pages.products_page import ProductsPage
 
 
 @given("I am on the login page")
@@ -643,6 +1015,12 @@ def step_open_login(context):
 @when('I log in as "{username}"')
 def step_login(context, username):
     context.login_page.login(username, "secret_sauce")
+
+
+@when('I sort the products by "{option}"')
+def step_sort(context, option):
+    # Choosing an option from a <select> dropdown:
+    ProductsPage(context.driver).sort_by(option)
 
 
 @then("I should see the products page")
@@ -914,11 +1292,103 @@ export class LoginPage extends BasePage {
 `;
   }
 
-  if (base.startsWith("home.page.")) {
+  if (base.startsWith("products.page.") || base.startsWith("home.page.")) {
+    if (c.tool === "cypress") {
+      return `import { BasePage } from "./base.page";
+
+/** Products page: the sort dropdown lives here. */
+export class ProductsPage extends BasePage {
+  readonly sortDropdown = ".product_sort_container";
+  readonly prices = ".inventory_item_price";
+
+  /** value: az, za, lohi or hilo. */
+  sortBy(value${ts ? ": string" : ""}) {
+    cy.get(this.sortDropdown).select(value);
+  }
+}
+`;
+    }
     return `import { BasePage } from "./base.page";
 
-// TODO: add the elements your tests need.
-export class HomePage extends BasePage {}
+/** Products page: the sort dropdown lives here. */
+export class ProductsPage extends BasePage {
+  readonly sortDropdown = ".product_sort_container";
+  readonly prices = ".inventory_item_price";
+
+  /** value: az, za, lohi or hilo. */
+  async sortBy(value${ts ? ": string" : ""}) {
+    await this.page.selectOption(this.sortDropdown, value);
+  }
+
+  async priceList()${ts ? ": Promise<number[]>" : ""} {
+    const texts = await this.page.locator(this.prices).allInnerTexts();
+    return texts.map((text${ts ? ": string" : ""}) => Number(text.replace("$", "")));
+  }
+}
+`;
+  }
+
+  if (base.startsWith("sorting.cy.")) {
+    const usePom = c.pom;
+    return `${usePom ? 'import { LoginPage } from "../pages/login.page";\nimport { ProductsPage } from "../pages/products.page";\n\n' : ""}describe("Sorting", () => {
+  ${usePom ? "const loginPage = new LoginPage();\n  const productsPage = new ProductsPage();\n\n  " : ""}beforeEach(() => {
+    ${usePom ? 'loginPage.login("standard_user", "secret_sauce");' : 'cy.visit("/");\n    cy.get("#user-name").type("standard_user");\n    cy.get("#password").type("secret_sauce");\n    cy.get("#login-button").click();'}
+  });
+
+  it("sorts products by price, low to high", () => {
+    // Choosing an option from a <select> dropdown:
+    ${usePom ? 'productsPage.sortBy("lohi");' : 'cy.get(".product_sort_container").select("lohi");'}
+
+    cy.get(".inventory_item_price").then((items) => {
+      const prices = [...items].map((item) => Number(item.innerText.replace("$", "")));
+      expect(prices).to.deep.equal([...prices].sort((a, b) => a - b));
+    });
+  });
+
+  ["az", "za", "lohi", "hilo"].forEach((option) => {
+    it(\`offers the "\${option}" sort option\`, () => {
+      ${usePom ? "productsPage.sortBy(option);" : 'cy.get(".product_sort_container").select(option);'}
+      cy.get(".product_sort_container").should("have.value", option);
+    });
+  });
+});
+`;
+  }
+
+  if (base.startsWith("sorting.spec.")) {
+    const usePom = c.pom;
+    return `import { expect, test } from "@playwright/test";
+${usePom ? 'import { LoginPage } from "../pages/login.page";\nimport { ProductsPage } from "../pages/products.page";\n' : ""}
+test.describe("Sorting", () => {
+  test.beforeEach(async ({ page }) => {
+    ${usePom ? 'await new LoginPage(page).login("standard_user", "secret_sauce");' : 'await page.goto("/");\n    await page.fill("#user-name", "standard_user");\n    await page.fill("#password", "secret_sauce");\n    await page.click("#login-button");'}
+  });
+
+  test("sorts products by price, low to high", async ({ page }) => {
+    ${
+      usePom
+        ? `const products = new ProductsPage(page);
+
+    // Choosing an option from a <select> dropdown:
+    await products.sortBy("lohi");
+
+    const prices = await products.priceList();`
+        : `// Choosing an option from a <select> dropdown:
+    await page.selectOption(".product_sort_container", "lohi");
+
+    const texts = await page.locator(".inventory_item_price").allInnerTexts();
+    const prices = texts.map((text) => Number(text.replace("$", "")));`
+    }
+    expect(prices).toEqual([...prices].sort((a, b) => a - b));
+  });
+
+  for (const option of ["az", "za", "lohi", "hilo"]) {
+    test(\`offers the "\${option}" sort option\`, async ({ page }) => {
+      ${usePom ? "await new ProductsPage(page).sortBy(option);" : 'await page.selectOption(".product_sort_container", option);'}
+      await expect(page.locator(".product_sort_container")).toHaveValue(option);
+    });
+  }
+});
 `;
   }
 
@@ -1118,6 +1588,52 @@ public final class ConfigReader {
 `;
   }
 
+  if (base === "DriverFactory.java" && c.tool === "appium") {
+    return `package com.autosetup.utils;
+
+import io.appium.java_client.android.AndroidDriver;
+import io.appium.java_client.android.options.UiAutomator2Options;
+import java.net.URL;
+
+/** Connects to a running Appium server. */
+public final class DriverFactory {
+    private DriverFactory() {}
+
+    public static AndroidDriver create() throws Exception {
+        UiAutomator2Options options = new UiAutomator2Options()
+                .setDeviceName("Android Emulator")
+                .setApp(System.getProperty("user.dir") + "/app.apk");
+
+        return new AndroidDriver(new URL("http://127.0.0.1:4723"), options);
+    }
+}
+`;
+  }
+
+  if (base === "DriverFactory.java" && c.tool === "playwright") {
+    return `package com.autosetup.utils;
+
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Playwright;
+
+/** Launches a Playwright browser. */
+public final class DriverFactory {
+    private DriverFactory() {}
+
+    public static Browser create(Playwright playwright, String browser) {
+        BrowserType.LaunchOptions options = new BrowserType.LaunchOptions().setHeadless(true);
+
+        return switch (browser.toLowerCase()) {
+            case "firefox" -> playwright.firefox().launch(options);
+            case "safari" -> playwright.webkit().launch(options);
+            default -> playwright.chromium().launch(options);
+        };
+    }
+}
+`;
+  }
+
   if (base === "DriverFactory.java") {
     return `package com.autosetup.utils;
 
@@ -1165,6 +1681,71 @@ public final class ScreenshotUtil {
         Path target = Path.of("reports", "screenshots", name + ".png");
         Files.createDirectories(target.getParent());
         Files.copy(source.toPath(), target);
+    }
+}
+`;
+  }
+
+  if (base === "BaseTest.java" && c.tool === "playwright") {
+    return `package com.autosetup.base;
+
+import com.autosetup.utils.ConfigReader;
+import com.autosetup.utils.DriverFactory;
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Playwright;
+import ${annotationPkg}.${afterAnnotation};
+import ${annotationPkg}.${beforeAnnotation};
+
+/** Shared setup and teardown for every test. */
+public class BaseTest {
+    protected Playwright playwright;
+    protected Browser browser;
+    protected Page page;
+
+    @${beforeAnnotation}
+    public void setUp() {
+        playwright = Playwright.create();
+        browser = DriverFactory.create(playwright, ConfigReader.get("browser"));
+        page = browser.newPage();
+        page.navigate(ConfigReader.get("base.url"));
+    }
+
+    @${afterAnnotation}
+    public void tearDown() {
+        if (browser != null) {
+            browser.close();
+        }
+        if (playwright != null) {
+            playwright.close();
+        }
+    }
+}
+`;
+  }
+
+  if (base === "BaseTest.java" && c.tool === "appium") {
+    return `package com.autosetup.base;
+
+import com.autosetup.utils.DriverFactory;
+import io.appium.java_client.android.AndroidDriver;
+import ${annotationPkg}.${afterAnnotation};
+import ${annotationPkg}.${beforeAnnotation};
+
+/** Shared setup and teardown. The Appium server must already be running. */
+public class BaseTest {
+    protected AndroidDriver driver;
+
+    @${beforeAnnotation}
+    public void setUp() throws Exception {
+        driver = DriverFactory.create();
+    }
+
+    @${afterAnnotation}
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
     }
 }
 `;
@@ -1224,6 +1805,7 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 /** Shared helpers for all page objects. */
@@ -1248,6 +1830,15 @@ public abstract class BasePage {
         WebElement element = find(locator);
         element.clear();
         element.sendKeys(text);
+    }
+
+    /** Choose an option from a <select> dropdown by its value. */
+    protected void select(By locator, String value) {
+        new Select(find(locator)).selectByValue(value);
+    }
+
+    protected String selectedOption(By locator) {
+        return new Select(find(locator)).getFirstSelectedOption().getText();
     }
 }
 `;
@@ -1283,15 +1874,112 @@ public class LoginPage extends BasePage {
 `;
   }
 
-  if (base === "HomePage.java" || base === "HomeScreen.java") {
+  if (base === "ProductsPage.java" || base === "HomePage.java") {
     return `package com.autosetup.pages;
 
+import java.util.List;
+import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 
-/** TODO: add the elements your tests need. */
-public class HomePage extends BasePage {
-    public HomePage(WebDriver driver) {
+/** Products page: the sort dropdown lives here. */
+public class ProductsPage extends BasePage {
+    private final By sortDropdown = By.className("product_sort_container");
+    private final By prices = By.className("inventory_item_price");
+
+    public ProductsPage(WebDriver driver) {
         super(driver);
+    }
+
+    /** value: az, za, lohi or hilo. */
+    public void sortBy(String value) {
+        select(sortDropdown, value);
+    }
+
+    public String selectedSort() {
+        return selectedOption(sortDropdown);
+    }
+
+    public List<Double> prices() {
+        return driver.findElements(prices).stream()
+                .map(WebElement::getText)
+                .map(text -> Double.parseDouble(text.replace("$", "")))
+                .toList();
+    }
+}
+`;
+  }
+
+  if (base === "SortingTest.java") {
+    const assertSorted =
+      c.framework === "junit5"
+        ? `        assertEquals(sorted, prices);`
+        : `        assertEquals(prices, sorted);`;
+
+    if (!c.pom) {
+      return `package com.autosetup.tests;
+
+import com.autosetup.base.BaseTest;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.Select;
+import ${testAnnotation};
+import static org.${c.framework === "junit5" ? "junit.jupiter.api.Assertions" : "testng.Assert"}.*;
+
+/** Dropdown sample: sorting the products list. */
+public class SortingTest extends BaseTest {
+
+    @Test
+    public void sortsByPriceLowToHigh() {
+        driver.findElement(By.id("user-name")).sendKeys("standard_user");
+        driver.findElement(By.id("password")).sendKeys("secret_sauce");
+        driver.findElement(By.id("login-button")).click();
+
+        // Choosing an option from a <select> dropdown:
+        Select sort = new Select(driver.findElement(By.className("product_sort_container")));
+        sort.selectByValue("lohi");
+
+        List<Double> prices = new ArrayList<>();
+        for (WebElement item : driver.findElements(By.className("inventory_item_price"))) {
+            prices.add(Double.parseDouble(item.getText().replace("$", "")));
+        }
+        List<Double> sorted = new ArrayList<>(prices);
+        Collections.sort(sorted);
+${assertSorted}
+    }
+}
+`;
+    }
+
+    return `package com.autosetup.tests;
+
+import com.autosetup.base.BaseTest;
+import com.autosetup.pages.LoginPage;
+import com.autosetup.pages.ProductsPage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import ${testAnnotation};
+import static org.${c.framework === "junit5" ? "junit.jupiter.api.Assertions" : "testng.Assert"}.*;
+
+/** Dropdown sample: sorting the products list. */
+public class SortingTest extends BaseTest {
+
+    @Test
+    public void sortsByPriceLowToHigh() {
+        new LoginPage(driver).login("standard_user", "secret_sauce");
+
+        ProductsPage products = new ProductsPage(driver);
+        // Choosing an option from a <select> dropdown:
+        products.sortBy("lohi");
+
+        List<Double> prices = products.prices();
+        List<Double> sorted = new ArrayList<>(prices);
+        Collections.sort(sorted);
+${assertSorted}
     }
 }
 `;
@@ -1355,6 +2043,19 @@ public class UserTest extends BaseTest {
         Response response = users.getUser(1);
         ${c.framework === "junit5" ? "assertEquals(200, response.statusCode());" : "assertEquals(response.statusCode(), 200);"}
     }
+
+    @Test
+    public void getUserReturnsTheRequestedId() {
+        Response response = users.getUser(2);
+        int id = response.jsonPath().getInt("id");
+        ${c.framework === "junit5" ? "assertEquals(2, id);" : "assertEquals(id, 2);"}
+    }
+
+    @Test
+    public void unknownUserReturnsNotFound() {
+        Response response = users.getUser(99999);
+        ${c.framework === "junit5" ? "assertEquals(404, response.statusCode());" : "assertEquals(response.statusCode(), 404);"}
+    }
 }
 `;
     }
@@ -1409,27 +2110,66 @@ public class TestRunner extends AbstractTestNGCucumberTests {}
   }
 
   if (base.endsWith("Steps.java")) {
+    const loginBody = c.pom
+      ? `        new LoginPage(driver).login(username, "secret_sauce");`
+      : `        driver.findElement(By.id("user-name")).sendKeys(username);
+        driver.findElement(By.id("password")).sendKeys("secret_sauce");
+        driver.findElement(By.id("login-button")).click();`;
+
+    const sortBody = c.pom
+      ? `        new ProductsPage(driver).sortBy(option);`
+      : `        Select sort = new Select(driver.findElement(By.className("product_sort_container")));
+        sort.selectByValue(option);`;
+
     return `package com.autosetup.steps;
 
+import com.autosetup.utils.ConfigReader;
+import com.autosetup.utils.DriverFactory;
+${c.pom ? "import com.autosetup.pages.LoginPage;\nimport com.autosetup.pages.ProductsPage;\n" : ""}import io.cucumber.java.After;
+import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.support.ui.Select;
 
 public class LoginSteps {
+    private WebDriver driver;
+
+    @Before
+    public void setUp() {
+        driver = DriverFactory.create(ConfigReader.get("browser"));
+    }
+
+    @After
+    public void tearDown() {
+        if (driver != null) {
+            driver.quit();
+        }
+    }
 
     @Given("I am on the login page")
     public void openLoginPage() {
-        // TODO: open the login page.
+        driver.get(ConfigReader.get("base.url"));
     }
 
     @When("I log in as {string}")
     public void login(String username) {
-        // TODO: log in.
+${loginBody}
+    }
+
+    @When("I sort the products by {string}")
+    public void sortProducts(String option) {
+        // Choosing an option from a <select> dropdown:
+${sortBody}
     }
 
     @Then("I should see the products page")
     public void checkProducts() {
-        // TODO: assert the products page is shown.
+        if (!driver.getCurrentUrl().contains("inventory")) {
+            throw new AssertionError("Expected the products page, got " + driver.getCurrentUrl());
+        }
     }
 }
 `;
@@ -1446,6 +2186,15 @@ function robotFile(path: string, base: string, c: Ctx): string {
   const library = c.framework === "robot-browser" ? "Browser" : "SeleniumLibrary";
 
   if (base === "login.robot") {
+    const inlineLogin = (user: string, pass: string) =>
+      library === "Browser"
+        ? `Fill Text    id=user-name    ${user}
+    Fill Secret    id=password    ${pass}
+    Click    id=login-button`
+        : `Input Text    id:user-name    ${user}
+    Input Password    id:password    ${pass}
+    Click Button    id:login-button`;
+
     return `*** Settings ***
 Documentation     Sample login tests.
 Resource          ../resources/common.resource
@@ -1454,23 +2203,37 @@ Suite Teardown    Close Test Browser
 
 *** Test Cases ***
 Valid User Can Log In
-    ${c.pom ? "Login With    standard_user    secret_sauce" : "Log    TODO: log in"}
-    Page Should Contain    Products
+    ${c.pom ? "Login With    standard_user    secret_sauce" : inlineLogin("standard_user", "secret_sauce")}
+    Page Should Show    Products
 
 Wrong Password Shows An Error
-    ${c.pom ? "Login With    standard_user    nope" : "Log    TODO: try a bad password"}
-    Page Should Contain    Epic sadface
+    ${c.pom ? "Login With    standard_user    nope" : inlineLogin("standard_user", "nope")}
+    Page Should Show    Epic sadface
 `;
   }
 
   if (base === "data_driven.robot") {
+    // Robot's built-in Test Template: one row per case, no extra library needed.
     return `*** Settings ***
+Documentation     One login test per row. The same data also lives in
+...               test_data/users.csv if you later switch to the DataDriver library.
 Resource          ../resources/common.resource
-Library           DataDriver    ../test_data/users.csv
+Resource          ../resources/pages/login_page.resource
+Suite Setup       Open Test Browser
+Suite Teardown    Close Test Browser
+Test Template     Login And Expect
 
-*** Test Cases ***
-Login With ${"${username}"}
-    [Template]    Login Scenario
+*** Test Cases ***              USERNAME           PASSWORD        EXPECTED
+Standard user can log in        standard_user      secret_sauce    Products
+Locked out user is rejected     locked_out_user    secret_sauce    Epic sadface
+Wrong password is rejected      standard_user      wrong_password  Epic sadface
+
+*** Keywords ***
+Login And Expect
+    [Arguments]    \${username}    \${password}    \${expected}
+    Go To    \${BASE_URL}
+    Login With    \${username}    \${password}
+    Page Should Show    \${expected}
 `;
   }
 
@@ -1489,6 +2252,15 @@ Open Test Browser
 
 Close Test Browser
     ${library === "Browser" ? "Close Browser" : "Close All Browsers"}
+
+Page Should Show
+    [Documentation]    Assert the page contains this text, whichever library is in use.
+    [Arguments]    \${text}
+    ${
+      library === "Browser"
+        ? "Get Text    body    *=    ${text}"
+        : "Page Should Contain    ${text}"
+    }
 `;
   }
 
@@ -1507,9 +2279,56 @@ Login With
 `;
   }
 
-  if (base === "home_page.resource") {
-    return `*** Keywords ***
-# TODO: add keywords for the products page.
+  if (base === "products_page.resource" || base === "home_page.resource") {
+    const selectKeyword =
+      library === "Browser"
+        ? "    Select Options By    \\${SORT_DROPDOWN}    value    \\${value}"
+        : "    Select From List By Value    \\${SORT_DROPDOWN}    \\${value}";
+
+    return `*** Variables ***
+\${SORT_DROPDOWN}    ${library === "Browser" ? "css=.product_sort_container" : "class:product_sort_container"}
+\${PRICE}            ${library === "Browser" ? "css=.inventory_item_price" : "class:inventory_item_price"}
+
+*** Keywords ***
+Sort Products By
+    [Documentation]    value: az, za, lohi or hilo
+    [Arguments]    \${value}
+${selectKeyword}
+`;
+  }
+
+  if (base === "sorting.robot") {
+    const dropdown = library === "Browser" ? "css=.product_sort_container" : "class:product_sort_container";
+    const selectInline = (value: string) =>
+      library === "Browser"
+        ? `Select Options By    ${dropdown}    value    ${value}`
+        : `Select From List By Value    ${dropdown}    ${value}`;
+
+    const setup = c.pom
+      ? "Login With    standard_user    secret_sauce"
+      : library === "Browser"
+        ? `Fill Text    id=user-name    standard_user
+...    AND    Fill Secret    id=password    secret_sauce
+...    AND    Click    id=login-button`
+        : `Run Keywords    Input Text    id:user-name    standard_user
+...    AND    Input Password    id:password    secret_sauce
+...    AND    Click Button    id:login-button`;
+
+    return `*** Settings ***
+Documentation     Dropdown sample: sorting the products list.
+Resource          ../resources/common.resource
+${c.pom ? "Resource          ../resources/pages/login_page.resource\nResource          ../resources/pages/products_page.resource\n" : ""}Suite Setup       Open Test Browser
+Suite Teardown    Close Test Browser
+Test Setup        ${setup}
+
+*** Test Cases ***
+Sort Products By Price Low To High
+    ${c.pom ? "Sort Products By    lohi" : selectInline("lohi")}
+    Page Should Show    Products
+
+Sort Products By Name Z To A
+    ${c.pom ? "Sort Products By    za" : selectInline("za")}
+    Page Should Show    Products
 `;
   }
 

@@ -36,12 +36,14 @@ export function CtaSection() {
               </Link>
             </Button>
             <Button
-              type="button"
+              asChild
               size="lg"
               variant="outline"
               className="h-11 border-white/30 bg-transparent px-6 text-[15px] text-primary-foreground hover:bg-white/10 hover:text-primary-foreground dark:border-white/30 dark:bg-transparent dark:hover:bg-white/10"
             >
-              <BookOpen data-icon="inline-start" /> View Documentation
+              <Link href="/docs">
+                <BookOpen data-icon="inline-start" /> View Documentation
+              </Link>
             </Button>
           </div>
 

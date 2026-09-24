@@ -81,6 +81,7 @@ export function buildPreview(sel: SetupSelection): ProjectPreview {
     prerequisites: prerequisitesFor(ctx),
     setupSteps: setupStepsFor(ctx),
     runCommand: runCommandFor(ctx),
+    ...(reportCommandFor(ctx) ? { reportCommand: reportCommandFor(ctx)! } : {}),
   };
 }
 
@@ -89,13 +90,15 @@ function pythonTree(c: Ctx): (FileNode | false)[] {
   const pageSuffix = c.tool === "appium" ? "_screen" : "_page";
   const bdd = c.framework === "behave";
 
+  const web = c.tool !== "appium";
+
   const pages =
     c.pom &&
     folder(pageDir, [
       file("__init__.py"),
       file(`base${pageSuffix}.py`),
       file(`login${pageSuffix}.py`),
-      c.advanced && file(`home${pageSuffix}.py`),
+      web && file(`products${pageSuffix}.py`),
     ]);
 
   const utils =
@@ -124,6 +127,7 @@ function pythonTree(c: Ctx): (FileNode | false)[] {
     : folder("tests", [
         file("__init__.py"),
         file("test_login.py"),
+        web && file("test_sorting.py"),
         c.advanced && file("test_data_driven.py"),
       ]);
 
@@ -154,13 +158,14 @@ function javaTree(c: Ctx): (FileNode | false)[] {
       folder(pageDir, [
         file(`Base${pageSuffix}.java`),
         file(`${subject}${pageSuffix}.java`),
-        c.advanced && !api && file(`Home${pageSuffix}.java`),
+        !api && !mobile && file(`Products${pageSuffix}.java`),
       ]),
     api && folder("models", [file("User.java")]),
     bdd
       ? folder("steps", [file(`${subject}Steps.java`)])
       : folder("tests", [
           file(`${subject}Test.java`),
+          !api && !mobile && file("SortingTest.java"),
           c.advanced && file(`${subject}DataDrivenTest.java`),
         ]),
     bdd && folder("runners", [file("TestRunner.java")]),
@@ -198,12 +203,16 @@ function jsTree(c: Ctx): (FileNode | false)[] {
   if (c.tool === "cypress") {
     return [
       folder("cypress", [
-        folder("e2e", [file(`login.cy.${ext}`), c.advanced && file(`data-driven.cy.${ext}`)]),
+        folder("e2e", [
+          file(`login.cy.${ext}`),
+          file(`sorting.cy.${ext}`),
+          c.advanced && file(`data-driven.cy.${ext}`),
+        ]),
         c.pom &&
           folder("pages", [
             file(`base.page.${ext}`),
             file(`login.page.${ext}`),
-            c.advanced && file(`home.page.${ext}`),
+            file(`products.page.${ext}`),
           ]),
         folder("fixtures", [file("users.json")]),
         folder("support", [file(`commands.${ext}`), file(`e2e.${ext}`)]),
@@ -215,12 +224,16 @@ function jsTree(c: Ctx): (FileNode | false)[] {
   }
 
   return [
-    folder("tests", [file(`login.spec.${ext}`), c.advanced && file(`data-driven.spec.${ext}`)]),
+    folder("tests", [
+      file(`login.spec.${ext}`),
+      file(`sorting.spec.${ext}`),
+      c.advanced && file(`data-driven.spec.${ext}`),
+    ]),
     c.pom &&
       folder("pages", [
         file(`base.page.${ext}`),
         file(`login.page.${ext}`),
-        c.advanced && file(`home.page.${ext}`),
+        file(`products.page.${ext}`),
       ]),
     c.advanced && folder("fixtures", [file(`test-fixtures.${ext}`)]),
     (c.advanced || c.has("logging")) &&
@@ -234,10 +247,15 @@ function jsTree(c: Ctx): (FileNode | false)[] {
 
 function robotTree(c: Ctx): (FileNode | false)[] {
   return [
-    folder("tests", [file("login.robot"), c.advanced && file("data_driven.robot")]),
+    folder("tests", [
+      file("login.robot"),
+      file("sorting.robot"),
+      c.advanced && file("data_driven.robot"),
+    ]),
     folder("resources", [
       file("common.resource"),
-      c.pom && folder("pages", [file("login_page.resource"), c.advanced && file("home_page.resource")]),
+      c.pom &&
+        folder("pages", [file("login_page.resource"), file("products_page.resource")]),
       file("variables.py"),
     ]),
     c.advanced && folder("test_data", [file("users.csv")]),
@@ -274,7 +292,8 @@ function dependenciesFor(c: Ctx): string[] {
       c.has("webdriver-manager") && "webdriver-manager",
       c.has("env-config") && "python-dotenv",
       c.has("parallel") && (c.tool === "robot" ? "robotframework-pabot" : "pytest-xdist"),
-      c.pom && "PyYAML"
+      // The config files are YAML, and the Appium driver factory reads them.
+      (c.pom || c.tool === "appium") && "PyYAML"
     );
   } else if (c.lang === "java") {
     const toolPkg: Record<string, string> = {
@@ -454,6 +473,23 @@ function setupStepsFor(c: Ctx): SetupStep[] {
   }
 
   return steps;
+}
+
+/** How the user opens the report their chosen add-on produces. */
+function reportCommandFor(c: Ctx): string | null {
+  if (c.has("allure")) return "allure serve reports/allure-results";
+
+  if (c.has("html-report")) {
+    if (c.tool === "cypress") return "npx marge reports/mochawesome/*.json -o reports/html";
+    if (c.lang === "java") return "open reports/extent-report.html";
+    if (c.lang === "python") return "open reports/report.html";
+  }
+
+  if (c.tool === "robot") return "open reports/report.html";
+  if (c.tool === "playwright" && c.lang !== "python" && c.lang !== "java")
+    return "npx playwright show-report reports/html";
+
+  return null;
 }
 
 function runCommandFor(c: Ctx): string {
