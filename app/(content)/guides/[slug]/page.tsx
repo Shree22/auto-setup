@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { getGuide, guides } from "@/lib/content/guides";
+import { JsonLd, articleSchema, breadcrumbSchema } from "@/components/seo/json-ld";
+import { clampDescription, pageMetadata } from "@/lib/seo";
 
 export function generateStaticParams() {
   return guides.map((guide) => ({ slug: guide.slug }));
@@ -17,12 +19,16 @@ export async function generateMetadata({
   params,
 }: PageProps<"/guides/[slug]">): Promise<Metadata> {
   const guide = getGuide((await params).slug);
-  if (!guide) return { title: "Guide not found — AutoSetup" };
+  if (!guide) return { title: "Guide not found" };
 
-  return {
-    title: `${guide.title} — AutoSetup`,
-    description: guide.description,
-  };
+  return pageMetadata({
+    title: guide.title,
+    description: clampDescription(
+      `${guide.description} A ${guide.minutes}-minute guide for manual testers moving into automation.`
+    ),
+    path: `/guides/${guide.slug}`,
+    type: "article",
+  });
 }
 
 export default async function GuidePage({ params }: PageProps<"/guides/[slug]">) {
@@ -33,6 +39,20 @@ export default async function GuidePage({ params }: PageProps<"/guides/[slug]">)
 
   return (
     <>
+      <JsonLd
+        data={articleSchema({
+          title: guide.title,
+          description: guide.description,
+          path: `/guides/${guide.slug}`,
+        })}
+      />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Guides", path: "/guides" },
+          { name: guide.title, path: `/guides/${guide.slug}` },
+        ])}
+      />
       <PageHero
         title={guide.title}
         description={guide.description}

@@ -11,6 +11,8 @@ import { examples, getExample } from "@/lib/content/examples";
 import { generateProjectFiles } from "@/lib/setup/generate";
 import { buildPreview } from "@/lib/setup/preview";
 import { encodeSelection } from "@/lib/setup/token";
+import { JsonLd, breadcrumbSchema } from "@/components/seo/json-ld";
+import { clampDescription, pageMetadata } from "@/lib/seo";
 
 export function generateStaticParams() {
   return examples.map((example) => ({ slug: example.slug }));
@@ -20,12 +22,15 @@ export async function generateMetadata({
   params,
 }: PageProps<"/examples/[slug]">): Promise<Metadata> {
   const example = getExample((await params).slug);
-  if (!example) return { title: "Example not found — AutoSetup" };
+  if (!example) return { title: "Example not found" };
 
-  return {
-    title: `${example.title} example — AutoSetup`,
-    description: example.description,
-  };
+  return pageMetadata({
+    title: `${example.title} example`,
+    description: clampDescription(
+      `${example.description} Browse the generated project file by file.`
+    ),
+    path: `/examples/${example.slug}`,
+  });
 }
 
 export default async function ExamplePage({ params }: PageProps<"/examples/[slug]">) {
@@ -49,6 +54,13 @@ export default async function ExamplePage({ params }: PageProps<"/examples/[slug
 
   return (
     <>
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Examples", path: "/examples" },
+          { name: example.title, path: `/examples/${example.slug}` },
+        ])}
+      />
       <PageHero
         title={example.title}
         description={example.description}

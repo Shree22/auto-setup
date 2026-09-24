@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { catalog } from "@/lib/setup/catalog";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Documentation — AutoSetup",
+export const metadata: Metadata = pageMetadata({
+  title: "Documentation",
   description:
-    "How to generate a test automation framework with AutoSetup: the wizard, what the generated project contains, prerequisites, running tests and reports.",
-};
+    "How to generate a test automation framework with AutoSetup: the wizard, the generated project, prerequisites, running tests and reports.",
+  path: "/docs",
+});
 
 const sections = [
   { id: "what-is-autosetup", label: "What is AutoSetup" },

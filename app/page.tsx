@@ -10,10 +10,13 @@ import { ProblemSection } from "@/components/problem-section";
 import { ProductPreview } from "@/components/product-preview";
 import { SupportedTools } from "@/components/supported-tools";
 import { ValueStrip } from "@/components/value-strip";
+import { JsonLd, softwareApplicationSchema } from "@/components/seo/json-ld";
+import { siteDescription } from "@/lib/seo";
 
 export default function Home() {
   return (
     <>
+      <JsonLd data={softwareApplicationSchema(siteDescription)} />
       <Navbar />
       <main className="flex-1">
         <Hero />

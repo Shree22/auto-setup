@@ -10,16 +10,20 @@ import {
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { faqCategories, faqs } from "@/lib/content/faqs";
+import { pageMetadata } from "@/lib/seo";
+import { JsonLd, faqSchema } from "@/components/seo/json-ld";
 
-export const metadata: Metadata = {
-  title: "FAQ — AutoSetup",
+export const metadata: Metadata = pageMetadata({
+  title: "Frequently Asked Questions",
   description:
-    "Answers about AutoSetup: which tools are supported, choosing a stack, what the generated project contains, running tests and reading reports.",
-};
+    "Answers about AutoSetup: supported tools, choosing a stack, what the generated project contains, running tests and reading reports.",
+  path: "/faq",
+});
 
 export default function FaqPage() {
   return (
     <>
+      <JsonLd data={faqSchema(faqs)} />
       <PageHero
         eyebrow="FAQ"
         title="Frequently asked questions"

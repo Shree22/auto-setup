@@ -8,12 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { examples } from "@/lib/content/examples";
 import { catalog } from "@/lib/setup/catalog";
 import { buildPreview } from "@/lib/setup/preview";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Examples — AutoSetup",
+export const metadata: Metadata = pageMetadata({
+  title: "Examples",
   description:
-    "Real generated projects for popular automation stacks: Selenium with Python or Java, Playwright, Cypress, Robot Framework and REST Assured. Browse the actual code before you generate.",
-};
+    "Real generated projects for Selenium, Playwright, Cypress, Robot Framework and REST Assured. Browse the actual code before you generate it.",
+  path: "/examples",
+});
 
 export default function ExamplesPage() {
   return (

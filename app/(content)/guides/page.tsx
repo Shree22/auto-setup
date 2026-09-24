@@ -5,12 +5,14 @@ import { PageHero } from "@/components/content/page-hero";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { guides } from "@/lib/content/guides";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Automation Guides — AutoSetup",
+export const metadata: Metadata = pageMetadata({
+  title: "Automation Guides",
   description:
-    "Plain-language guides for manual testers moving into automation: choosing a tool, the Page Object Model, reading test reports and your first week with a project.",
-};
+    "Plain-language guides for manual testers moving into automation: choosing a tool, the Page Object Model and reading test reports.",
+  path: "/guides",
+});
 
 export default function GuidesPage() {
   return (
